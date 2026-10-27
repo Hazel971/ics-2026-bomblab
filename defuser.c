@@ -22,57 +22,256 @@ static int write_answer(char *out, size_t cap, const uint32_t *values, size_t co
 int solve_phase_1(uint64_t challenge, char *out, size_t cap) {
     uint32_t values[MAX_FIELDS] = {0};
     size_t count = 0;
-    (void)challenge;
-    // TODO: 根据 phase_01 的汇编，用 challenge 算出口令中的各个整数，依次存入 values，并把 count 改为整数个数。
+    
+    uint32_t high32 = (uint32_t)(challenge >> 32);
+    uint32_t low32 = (uint32_t)challenge;
+    uint32_t arg1 = high32;
+    uint32_t arg2 = (uint32_t)(challenge >> 16);
+
+    uint32_t step0_res = (high32 + 0xfe31) ^ low32;
+    uint32_t step1_res = (3 * arg1) ^ (arg2 + 0x2a60);
+    uint32_t step2_res = (3 * step1_res + low32) ^ 0x28c0;
+
+    values[0] = step2_res ^ step0_res;
+    count = 1;
     return write_answer(out, cap, values, count);
 }
 
 int solve_phase_2(uint64_t challenge, char *out, size_t cap) {
     uint32_t values[MAX_FIELDS] = {0};
     size_t count = 0;
-    (void)challenge;
-    // TODO: 根据 phase_02 的汇编，用 challenge 算出口令中的各个整数，依次存入 values，并把 count 改为整数个数。
+
+    values[0] = (uint32_t)((challenge >> 13) & 0x7F);
+
+    for (int i = 1; i < 6; ++i) {
+        uint32_t shift = 7 + 3 * (i - 1);
+        uint32_t tmp = (uint32_t)((challenge >> shift) & 0x1F);
+        tmp += i;
+        tmp ^= values[i-1];
+        values[i] = tmp * 3;
+    }
+
+    count = 6;
     return write_answer(out, cap, values, count);
 }
 
 int solve_phase_3(uint64_t challenge, char *out, size_t cap) {
-    uint32_t values[MAX_FIELDS] = {0};
+   uint32_t values[MAX_FIELDS] = {0};
     size_t count = 0;
-    (void)challenge;
-    // TODO: 根据 phase_03 的汇编，用 challenge 算出口令中的各个整数，依次存入 values，并把 count 改为整数个数。
+
+    uint32_t v0 = (uint32_t)(challenge & 0x7);
+    values[0] = v0;
+
+    uint32_t arg = (uint32_t)(challenge >> 32) ^ (uint32_t)(challenge >> 3);
+
+    uint32_t v1 = 0;
+    switch(v0) {
+        case 0:
+            v1 = 5 * arg + 0x821b;
+            break;
+        case 1:
+            v1 = 5 * arg + 0x29a1d;
+            break;
+        case 2:
+            v1 = (arg ^ 0xd8e5) + (arg >> 2);
+            break;
+        case 3:
+            v1 = 5 * arg + 0xc5ad;
+            break;
+        case 4:
+            v1 = (4 * arg) ^ 0x2ea2;
+            break;
+        case 5:
+            v1 = (arg ^ 0x8fb8) + (arg >> 2);
+            break;
+        case 6:
+            v1 = 5 * arg + 0x3c186;
+            break;
+        case 7:
+            v1 = (4 * arg) ^ 0xb962;
+            break;
+    }
+    values[1] = v1;
+
+    count = 2;
     return write_answer(out, cap, values, count);
+}
+
+static uint32_t p4_walk(uint32_t n, uint32_t low, uint32_t high, uint32_t x) {
+    uint32_t mid = low + (high - low) / 2;
+    if (n == mid) {
+        return (mid + 0x2b) ^ x;
+    } else if (n > mid) {
+        uint32_t res = p4_walk(n, mid + 1, high, x);
+        return (3 * res ^ (mid + x)) ^ 0xf;
+    } else {
+        uint32_t res = p4_walk(n, low, mid - 1, x);
+        return (3 * res ^ (mid + x)) ^ 0x12;
+    }
 }
 
 int solve_phase_4(uint64_t challenge, char *out, size_t cap) {
     uint32_t values[MAX_FIELDS] = {0};
     size_t count = 0;
-    (void)challenge;
-    // TODO: 根据 phase_04 的汇编，用 challenge 算出口令中的各个整数，依次存入 values，并把 count 改为整数个数。
+
+    uint32_t n = (uint32_t)(challenge & 0x7F);
+    uint32_t x = (uint32_t)(challenge >> 7) ^ (uint32_t)(challenge >> 32);
+
+    values[0] = p4_walk(n, 0, 0x7F, x);
+    count = 1;
+
     return write_answer(out, cap, values, count);
+}
+
+typedef struct p5_node {
+    const struct p5_node *next;
+    uint32_t val_a;
+    uint32_t val_b;
+} p5_node_t;
+
+static const p5_node_t nodes[] = {
+    /* 0x405c40 */ { (const p5_node_t*)0x405c20, 0x096a, 0xec28 },
+    /* 0x405c20 */ { (const p5_node_t*)0x405bf0, 0x050b, 0x002a },
+    /* 0x405bf0 */ { (const p5_node_t*)0x405ba0, 0x0222, 0x78b1 },
+    /* 0x405ba0 */ { (const p5_node_t*)0x405be0, 0x081a, 0xdc28 },
+    /* 0x405be0 */ { (const p5_node_t*)0x405bc0, 0x0671, 0xb1f3 },
+    /* 0x405bc0 */ { (const p5_node_t*)0x405c10, 0x040b, 0xcd42 },
+    /* 0x405c10 */ { (const p5_node_t*)0x405c50, 0x0028, 0x4f4c },
+    /* 0x405c50 */ { (const p5_node_t*)0x405c00, 0x0336, 0xae87 },
+    /* 0x405c00 */ { (const p5_node_t*)0x405c30, 0x0151, 0x7c49 },
+    /* 0x405c30 */ { (const p5_node_t*)0x405bd0, 0x0a3f, 0xc7aa },
+    /* 0x405bd0 */ { (const p5_node_t*)0x405bb0, 0x0b17, 0x0d26 },
+};
+
+static const p5_node_t *const p5_heads[8] = {
+    &nodes[0],  // idx=0, 0x405c40
+    &nodes[1],  // idx=1, 0x405c20
+    &nodes[2],  // idx=2, 0x405bf0
+    &nodes[3],  // idx=3, 0x405ba0
+    &nodes[4],  // idx=4, 0x405be0
+    &nodes[5],  // idx=5, 0x405bc0
+    &nodes[6],  // idx=6, 0x405c10
+    &nodes[7],  // idx=7, 0x405c50
+};
+
+static uint32_t p5_traverse(uint64_t challenge, uint32_t *out_v1) {
+    uint32_t idx = (uint32_t)(challenge & 0x7);
+    const p5_node_t *cur = p5_heads[idx];
+
+    uint32_t base = (uint32_t)(challenge >> 6) ^ (uint32_t)(challenge >> 32);
+    base ^= 0xeaa5;
+    base = base * 3 + cur->val_b;
+    base ^= cur->val_a;
+    *out_v1 = cur->val_a;
+
+    uint32_t loop_cnt = (uint32_t)((challenge >> 3) & 0x3);
+    if (loop_cnt == 0) {
+        return base;
+    }
+
+    for (uint32_t i = 1; i <= loop_cnt; ++i) {
+        cur = cur->next;
+        base = base * 3 + cur->val_b;
+        base ^= cur->val_a;
+        *out_v1 = cur->val_a;
+    }
+
+    return base;
 }
 
 int solve_phase_5(uint64_t challenge, char *out, size_t cap) {
     uint32_t values[MAX_FIELDS] = {0};
     size_t count = 0;
-    (void)challenge;
-    // TODO: 根据 phase_05 的汇编，用 challenge 算出口令中的各个整数，依次存入 values，并把 count 改为整数个数。
+
+    uint32_t v1;
+    values[0] = p5_traverse(challenge, &v1);
+    values[1] = v1;
+    count = 2;
+
     return write_answer(out, cap, values, count);
+}
+
+static inline uint32_t rol3(uint32_t x) {
+    return (x << 3) | (x >> 29);
+}
+
+// 32位无符号数循环右移3位
+static inline uint32_t ror3(uint32_t x) {
+    return (x >> 3) | (x << 29);
+}
+
+// 单分支运算函数
+static uint32_t p6_op(uint32_t idx, uint32_t x) {
+    switch(idx) {
+        case 0:
+            return rol3(x) ^ 0x6bc9;
+        case 1:
+            return ((x >> 7) ^ x) + 0x2aaf;
+        case 2:
+            return (x + 0xfcfd) ^ (x >> 7);
+        case 3:
+            return (x ^ 0xd890) + (x << 7);
+        case 4:
+            return ((x << 5) + 0xebab) ^ (3 * x);
+        case 5:
+            return ror3(x);
+        case 6:
+            return (x ^ 0xd890) + (x << 7);
+        case 7:
+            return (x + 0xfcfd) ^ (x >> 7);
+        default:
+            return 0;
+    }
 }
 
 int solve_phase_6(uint64_t challenge, char *out, size_t cap) {
     uint32_t values[MAX_FIELDS] = {0};
     size_t count = 0;
-    (void)challenge;
-    // TODO: 根据 phase_06 的汇编，用 challenge 算出口令中的各个整数，依次存入 values，并把 count 改为整数个数。
+
+    uint32_t idx1 = (uint32_t)(challenge & 0x7);
+    uint32_t idx2 = (uint32_t)((challenge >> 3) & 0x7);
+
+    uint32_t arg = (uint32_t)(challenge >> 6) ^ (uint32_t)(challenge >> 32);
+
+    uint32_t res = p6_op(idx1, arg);
+    res ^= 0x5746;
+    res = p6_op(idx2, res);
+    values[0] = res + 0x9b24;
+
+    count = 1;
     return write_answer(out, cap, values, count);
 }
 
+// ========== Secret 隐藏关相关 ==========
+// 32位无符号数循环左移7位
+static inline uint32_t rol7(uint32_t x) {
+    return (x << 7) | (x >> 25);
+}
+
+// 核心运算函数
+static uint32_t secret_mix(uint32_t x) {
+    return (rol7(x) + 0xd515) ^ 0xe16d;
+}
+
 int solve_secret(uint64_t challenge, uint64_t context, char *out, size_t cap) {
-    (void)challenge;
-    (void)context;
-    (void)out;
-    (void)cap;
-    // TODO（选做）: 根据 secret_gate、secret_copy 和 secret_phase 的汇编构造完整的第七行，写入 out 后返回 0。
-    // 第七行不一定只有整数，可以直接用 snprintf 写入；还没完成时保持返回 1，测试会显示 not attempted。
-    return 1;
+    uint32_t values[MAX_FIELDS] = {0};
+    size_t count = 0;
+
+    uint32_t v0 = (uint32_t)(context & 0x3);
+    values[0] = v0;
+
+    uint32_t chal_half = (uint32_t)(challenge >> 32) ^ (uint32_t)challenge;
+    uint32_t ctx_half = (uint32_t)(context >> 32) ^ (uint32_t)context;
+    uint32_t arg = chal_half ^ ctx_half;
+
+    uint32_t offset = v0 * 0xd515;
+    offset ^= (uint32_t)(context >> 16);
+    uint32_t v1 = secret_mix(arg) ^ offset;
+    values[1] = v1;
+
+    uint32_t tmp = (chal_half >> 7) + ctx_half + v0 + 0xe16d;
+    values[2] = v1 ^ tmp;
+
+    count = 3;
+    return write_answer(out, cap, values, count);
 }
