@@ -123,59 +123,48 @@ int solve_phase_4(uint64_t challenge, char *out, size_t cap) {
     return write_answer(out, cap, values, count);
 }
 
-typedef struct p5_node {
-    const struct p5_node *next;
+typedef struct {
+    int next_idx;
     uint32_t val_a;
     uint32_t val_b;
 } p5_node_t;
 
-static const p5_node_t nodes[] = {
-    /* 0x405c40 */ { (const p5_node_t*)0x405c20, 0x096a, 0xec28 },
-    /* 0x405c20 */ { (const p5_node_t*)0x405bf0, 0x050b, 0x002a },
-    /* 0x405bf0 */ { (const p5_node_t*)0x405ba0, 0x0222, 0x78b1 },
-    /* 0x405ba0 */ { (const p5_node_t*)0x405be0, 0x081a, 0xdc28 },
-    /* 0x405be0 */ { (const p5_node_t*)0x405bc0, 0x0671, 0xb1f3 },
-    /* 0x405bc0 */ { (const p5_node_t*)0x405c10, 0x040b, 0xcd42 },
-    /* 0x405c10 */ { (const p5_node_t*)0x405c50, 0x0028, 0x4f4c },
-    /* 0x405c50 */ { (const p5_node_t*)0x405c00, 0x0336, 0xae87 },
-    /* 0x405c00 */ { (const p5_node_t*)0x405c30, 0x0151, 0x7c49 },
-    /* 0x405c30 */ { (const p5_node_t*)0x405bd0, 0x0a3f, 0xc7aa },
-    /* 0x405bd0 */ { (const p5_node_t*)0x405bb0, 0x0b17, 0x0d26 },
+static const p5_node_t p5_nodes[] = {
+    { 4, 0x081a, 0xdc28 },   
+    { -1, 0x070f, 0xccfb }, 
+    { 7, 0x040b, 0xcd42 },
+    { 1, 0x0b17, 0x0d26 },
+    { 2, 0x0671, 0xb1f3 },
+    { 0, 0x0222, 0x78b1 }, 
+    { 9, 0x0151, 0x7c49 }, 
+    { 11, 0x0028, 0x4f4c },
+    { 5, 0x050b, 0x002a }, 
+    { 3, 0x0a3f, 0xc7aa },
+    { 8, 0x096a, 0xec28 },
+    { 6, 0x0336, 0xae87 }  
 };
 
-static const p5_node_t *const p5_heads[8] = {
-    &nodes[0],  // idx=0, 0x405c40
-    &nodes[1],  // idx=1, 0x405c20
-    &nodes[2],  // idx=2, 0x405bf0
-    &nodes[3],  // idx=3, 0x405ba0
-    &nodes[4],  // idx=4, 0x405be0
-    &nodes[5],  // idx=5, 0x405bc0
-    &nodes[6],  // idx=6, 0x405c10
-    &nodes[7],  // idx=7, 0x405c50
-};
+static const int p5_heads[8] = { 10, 8, 5, 0, 4, 2, 7, 11 };
 
 static uint32_t p5_traverse(uint64_t challenge, uint32_t *out_v1) {
     uint32_t idx = (uint32_t)(challenge & 0x7);
-    const p5_node_t *cur = p5_heads[idx];
+    int cur_idx = p5_heads[idx];
 
-    uint32_t base = (uint32_t)(challenge >> 6) ^ (uint32_t)(challenge >> 32);
+    uint32_t base = (uint32_t)(challenge >> 32) ^ (uint32_t)(challenge >> 6);
     base ^= 0xeaa5;
-    base = base * 3 + cur->val_b;
-    base ^= cur->val_a;
-    *out_v1 = cur->val_a;
+
+    base = base * 3 + p5_nodes[cur_idx].val_b;
+    base ^= p5_nodes[cur_idx].val_a;
+    *out_v1 = p5_nodes[cur_idx].val_a;
 
     uint32_t loop_cnt = (uint32_t)((challenge >> 3) & 0x3);
-    if (loop_cnt == 0) {
-        return base;
-    }
-
     for (uint32_t i = 1; i <= loop_cnt; ++i) {
-        cur = cur->next;
-        base = base * 3 + cur->val_b;
-        base ^= cur->val_a;
-        *out_v1 = cur->val_a;
+        cur_idx = p5_nodes[cur_idx].next_idx;
+        if (cur_idx < 0) break;
+        base = base * 3 + p5_nodes[cur_idx].val_b;
+        base ^= p5_nodes[cur_idx].val_a;
+        *out_v1 = p5_nodes[cur_idx].val_a;
     }
-
     return base;
 }
 
@@ -195,12 +184,10 @@ static inline uint32_t rol3(uint32_t x) {
     return (x << 3) | (x >> 29);
 }
 
-// 32位无符号数循环右移3位
 static inline uint32_t ror3(uint32_t x) {
     return (x >> 3) | (x << 29);
 }
 
-// 单分支运算函数
 static uint32_t p6_op(uint32_t idx, uint32_t x) {
     switch(idx) {
         case 0:
@@ -242,13 +229,12 @@ int solve_phase_6(uint64_t challenge, char *out, size_t cap) {
     return write_answer(out, cap, values, count);
 }
 
-// ========== Secret 隐藏关相关 ==========
-// 32位无符号数循环左移7位
+
 static inline uint32_t rol7(uint32_t x) {
     return (x << 7) | (x >> 25);
 }
 
-// 核心运算函数
+
 static uint32_t secret_mix(uint32_t x) {
     return (rol7(x) + 0xd515) ^ 0xe16d;
 }
@@ -273,5 +259,6 @@ int solve_secret(uint64_t challenge, uint64_t context, char *out, size_t cap) {
     values[2] = v1 ^ tmp;
 
     count = 3;
-    return write_answer(out, cap, values, count);
+    write_answer(out, cap, values, count);
+    return 0;
 }
